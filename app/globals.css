@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ink: #1d1d1f;
+  --ink-2: #3a3a3c;
+  --muted: #6e6e73;
+  --line: rgba(0, 0, 0, 0.08);
+  --bg-soft: #f5f5f7;
+  --green: #34c759;
+  --red: #ff3b30;
+  --orange: #ff9500;
+  --blue: #007aff;
+  --duitnow: #ed1c24;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* {
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  background: var(--bg-soft);
+  color: var(--ink);
+}
+
+.serif {
+  font-family: 'Instrument Serif', serif;
+  font-style: italic;
+  letter-spacing: -0.02em;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+}
+
+input, select, textarea {
+  font-family: inherit;
+}
