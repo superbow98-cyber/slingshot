@@ -1,16 +1,13 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { createServerClient } from '@supabase/ssr';
 
 const RESERVED_SUBDOMAINS = ['', 'www', 'app', 'admin', 'api', 'staging', 'dev'];
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const url = request.nextUrl.clone();
   const hostname = (request.headers.get('host') || '').toLowerCase();
   const cleanHost = hostname.split(':')[0];
 
-  // Detect base domain
-  // Production: slingshot.my
-  // Vercel preview: slingshot-liart.vercel.app, slingshot-xyz.vercel.app etc
-  // Local dev: localhost
   const isVercelPreview = cleanHost.endsWith('.vercel.app');
   const isProduction = cleanHost.endsWith('slingshot.my');
   const isLocal = cleanHost === 'localhost' || cleanHost.endsWith('.localhost');
@@ -18,12 +15,9 @@ export function middleware(request: NextRequest) {
   let subdomain = '';
 
   if (isProduction) {
-    // brewpickup.slingshot.my → subdomain = 'brewpickup'
-    // slingshot.my → subdomain = ''
     subdomain = cleanHost.replace('.slingshot.my', '');
-    if (subdomain === cleanHost) subdomain = ''; // root domain
+    if (subdomain === cleanHost) subdomain = '';
   } else if (isVercelPreview) {
-    // slingshot-liart.vercel.app → treat as root, no tenant
     subdomain = '';
   } else if (isLocal) {
     if (cleanHost === 'localhost') {
@@ -33,23 +27,74 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // Skip API + static + Next.js internals
-  if (url.pathname.startsWith('/_next') || 
-      url.pathname.startsWith('/api') || 
-      url.pathname.startsWith('/favicon')) {
+  // Skip Next.js internals + favicon
+  if (
+    url.pathname.startsWith('/_next') ||
+    url.pathname.startsWith('/favicon')
+  ) {
     return NextResponse.next();
   }
 
-  // Reserved subdomain or root → main app (no tenant rewrite)
-  if (!subdomain || RESERVED_SUBDOMAINS.includes(subdomain)) {
+  // Real tenant subdomain → rewrite to /_sites/[slug], skip auth check
+  if (subdomain && !RESERVED_SUBDOMAINS.includes(subdomain)) {
+    url.pathname = `/_sites/${subdomain}${url.pathname}`;
+    return NextResponse.rewrite(url);
+  }
+
+  // Skip auth check for API routes and /t/ test routes
+  if (url.pathname.startsWith('/api') || url.pathname.startsWith('/t/')) {
     return NextResponse.next();
   }
 
-  // Real tenant subdomain → rewrite to /_sites/[slug]
-  url.pathname = `/_sites/${subdomain}${url.pathname}`;
-  return NextResponse.rewrite(url);
+  // ── Onboarding redirect logic ──────────────────────────────────────────────
+  // Logged-in user with no tenant → /onboarding
+  // Logged-in user with tenant visiting /onboarding → /dashboard
+
+  const res = NextResponse.next();
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name) { return request.cookies.get(name)?.value },
+        set(name, value, options) {
+          request.cookies.set({ name, value, ...options });
+          res.cookies.set({ name, value, ...options });
+        },
+        remove(name, options) {
+          request.cookies.set({ name, value: '', ...options });
+          res.cookies.set({ name, value: '', ...options });
+        },
+      },
+    }
+  );
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (user) {
+    const { data: tenant } = await supabase
+      .from('tenants')
+      .select('id')
+      .eq('owner_id', user.id)
+      .maybeSingle();
+
+    // No tenant yet and not already on /onboarding → redirect to wizard
+    if (!tenant && url.pathname !== '/onboarding') {
+      url.pathname = '/onboarding';
+      return NextResponse.redirect(url);
+    }
+
+    // Has tenant but visiting /onboarding → redirect to dashboard
+    if (tenant && url.pathname === '/onboarding') {
+      url.pathname = '/dashboard';
+      return NextResponse.redirect(url);
+    }
+  }
+
+  return res;
 }
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };
