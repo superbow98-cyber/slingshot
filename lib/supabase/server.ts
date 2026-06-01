@@ -1,4 +1,5 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 
 export function createClient() {
@@ -27,7 +28,8 @@ export function createAdminClient() {
   if (!url || !key) {
     throw new Error('Supabase admin env vars not set.');
   }
-  return createServerClient(url, key, {
-    cookies: { get() { return undefined; }, set() {}, remove() {} },
+  // Use supabase-js directly — bypasses RLS with service role key
+  return createSupabaseClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
   });
 }
