@@ -36,7 +36,6 @@ export function RestoranTemplate({ tenant, items, categories }: Props) {
   const [cart, setCart] = useState<Map<string, CartItem>>(new Map());
   const [screen, setScreen] = useState<Screen>('menu');
 
-  // Checkout form
   const [form, setForm] = useState({ name: '', phone: '', notes: '' });
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -115,7 +114,7 @@ export function RestoranTemplate({ tenant, items, categories }: Props) {
       total: cartTotal,
       status: 'pending',
       fulfillment_status: 'pending',
-      payment_method: 'cash',
+      payment_method: tenant.duitnow_qr_url ? 'duitnow' : 'cash',
       payment_status: 'unpaid',
     });
 
@@ -139,7 +138,12 @@ export function RestoranTemplate({ tenant, items, categories }: Props) {
       <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>Pesanan Diterima!</h1>
       <p style={{ margin: '10px 0 4px', fontSize: 13, color: '#888' }}>No. rujukan</p>
       <p style={{ margin: 0, fontSize: 18, fontWeight: 700, color: brandColor, letterSpacing: 2 }}>{orderRef}</p>
-      <p style={{ margin: '18px 0 0', fontSize: 13, color: '#888', maxWidth: 260 }}>
+      {tenant.duitnow_qr_url && (
+        <p style={{ margin: '14px 0 0', fontSize: 13, color: '#e67e22', fontWeight: 600 }}>
+          ⚠️ Sila tunjuk bukti bayaran DuitNow kepada kakitangan
+        </p>
+      )}
+      <p style={{ margin: '10px 0 0', fontSize: 13, color: '#888', maxWidth: 260 }}>
         {tenant.business_name} akan sediakan pesanan anda. Terima kasih!
       </p>
       <button
@@ -166,7 +170,6 @@ export function RestoranTemplate({ tenant, items, categories }: Props) {
           {cartItems.map(ci => (
             <div key={ci.item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid #f0ece4' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {/* qty controls inline */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <button onClick={() => removeFromCart(ci.item.id)} style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid #e8e4de', background: '#fff', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
                   <span style={{ fontSize: 13, fontWeight: 700, minWidth: 14, textAlign: 'center' }}>{ci.qty}</span>
@@ -198,6 +201,15 @@ export function RestoranTemplate({ tenant, items, categories }: Props) {
             </CField>
           </div>
         </div>
+
+        {/* DuitNow QR */}
+        {tenant.duitnow_qr_url && (
+          <div style={{ background: '#fff', border: '1px solid #e8e4de', borderRadius: 16, padding: '14px 16px', marginBottom: 16, textAlign: 'center' }}>
+            <p style={{ margin: '0 0 12px', fontSize: 12, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: 1 }}>Bayaran DuitNow</p>
+            <img src={tenant.duitnow_qr_url} alt="DuitNow QR" style={{ width: 200, height: 200, objectFit: 'contain', borderRadius: 8 }} />
+            <p style={{ margin: '10px 0 0', fontSize: 12, color: '#888' }}>Scan QR · Tunjuk bukti bayaran kepada kakitangan</p>
+          </div>
+        )}
 
         {submitError && (
           <p style={{ color: '#c0392b', fontSize: 13, marginBottom: 12, textAlign: 'center' }}>{submitError}</p>
@@ -251,13 +263,11 @@ export function RestoranTemplate({ tenant, items, categories }: Props) {
             const qty = getQty(item.id);
             return (
               <div key={item.id} style={{ background: '#fff', borderRadius: 16, padding: 12, display: 'flex', gap: 12, marginBottom: 10, boxShadow: '0 1px 4px #0000000a' }}>
-                {/* Image / emoji */}
                 <div style={{ width: 76, height: 76, borderRadius: 12, background: '#f0ece4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36, flexShrink: 0, overflow: 'hidden' }}>
                   {item.photo_url
                     ? <img src={item.photo_url} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     : (item.emoji || '🍽️')}
                 </div>
-                {/* Info */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>{item.name}</p>
                   {item.description && <p style={{ margin: '3px 0 0', fontSize: 11, color: '#888', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.description}</p>}
