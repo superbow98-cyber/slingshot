@@ -57,7 +57,7 @@ export async function getCurrentTenant(): Promise<Tenant | null> {
   const { data, error } = await supabase
     .from('tenants')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('owner_id', user.id)
     .single();
   if (error) return null;
   return data as Tenant;
