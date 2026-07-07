@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
-import { stripe, planIdFromPriceId } from '@/lib/stripe';
+import { getStripe, planIdFromPriceId } from '@/lib/stripe';
 import { createAdminClient } from '@/lib/supabase/server';
 import type Stripe from 'stripe';
 
@@ -15,7 +15,7 @@ export async function POST(request: Request) {
 
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(body, signature, process.env.STRIPE_WEBHOOK_SECRET);
+    event = getStripe().webhooks.constructEvent(body, signature, process.env.STRIPE_WEBHOOK_SECRET);
   } catch (err: any) {
     return NextResponse.json({ error: `Webhook signature verification failed: ${err.message}` }, { status: 400 });
   }
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
       if (tenantId) {
         await admin.from('tenants').update({ status: 'active' }).eq('id', tenantId);
         if (session.mode === 'subscription' && session.subscription) {
-          const sub = await stripe.subscriptions.retrieve(session.subscription as string);
+          const sub = await getStripe().subscriptions.retrieve(session.subscription as string);
           await upsertSubscription(admin, tenantId, sub, plan);
         } else {
           // One-time payment (DFY plan)

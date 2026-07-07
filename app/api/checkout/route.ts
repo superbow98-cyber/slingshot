@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
-import { stripe, STRIPE_PRICE_IDS } from '@/lib/stripe';
+import { getStripe, STRIPE_PRICE_IDS } from '@/lib/stripe';
 import { type PlanId } from '@/lib/niches';
 
 export async function POST(request: Request) {
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
   // Ensure a Stripe customer exists for this tenant
   let customerId = tenant.stripe_customer_id as string | null;
   if (!customerId) {
-    const customer = await stripe.customers.create({
+    const customer = await getStripe().customers.create({
       email: user.email || undefined,
       metadata: { tenant_id: tenant.id, tenant_slug: tenant.slug },
     });
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
 
   const isOneTime = plan === 'dfy';
 
-  const session = await stripe.checkout.sessions.create({
+  const session = await getStripe().checkout.sessions.create({
     customer: customerId,
     mode: isOneTime ? 'payment' : 'subscription',
     line_items: [{ price: priceId, quantity: 1 }],
