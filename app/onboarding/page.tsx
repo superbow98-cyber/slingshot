@@ -209,4 +209,12 @@ function NavButtons({ onBack, onNext, nextLabel = 'Continue', nextDisabled }: { 
       ) : <span />}
       <button
         onClick={onNext}
-        disabled={
+        disabled={nextDisabled}
+        className="px-6 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-40"
+        style={{ background: 'var(--ink)' }}
+      >
+        {nextLabel}
+      </button>
+    </div>
+  );
+}
