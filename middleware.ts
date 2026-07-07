@@ -1,55 +1,65 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
 
+// Reserved subdomains that map to the main app
 const RESERVED_SUBDOMAINS = ['', 'www', 'app', 'admin', 'api', 'staging', 'dev'];
 
-export function middleware(request: NextRequest) {
+// Paths that require the user to be logged in
+const PROTECTED_PATHS = ['/dashboard', '/onboarding'];
+
+// Auth pages a logged-in user shouldn't see again
+const AUTH_PATHS = ['/login', '/signup'];
+
+export async function middleware(request: NextRequest) {
   const url = request.nextUrl.clone();
   const hostname = (request.headers.get('host') || '').toLowerCase();
+
+  // Strip port (for localhost development)
   const cleanHost = hostname.split(':')[0];
 
-  // Detect base domain
-  // Production: slingshot.my
-  // Vercel preview: slingshot-liart.vercel.app, slingshot-xyz.vercel.app etc
-  // Local dev: localhost
+  // Production: brewpickup.slingshot.my
+  // Dev: brewpickup.localhost
+  // Vercel preview URLs (*.vercel.app) are always treated as root, never as a tenant subdomain
   const isVercelPreview = cleanHost.endsWith('.vercel.app');
   const isProduction = cleanHost.endsWith('slingshot.my');
-  const isLocal = cleanHost === 'localhost' || cleanHost.endsWith('.localhost');
+  const baseDomain = isProduction ? 'slingshot.my' : 'localhost';
 
+  // Extract subdomain
   let subdomain = '';
-
-  if (isProduction) {
-    // brewpickup.slingshot.my → subdomain = 'brewpickup'
-    // slingshot.my → subdomain = ''
-    subdomain = cleanHost.replace('.slingshot.my', '');
-    if (subdomain === cleanHost) subdomain = ''; // root domain
-  } else if (isVercelPreview) {
-    // slingshot-liart.vercel.app → treat as root, no tenant
-    subdomain = '';
-  } else if (isLocal) {
-    if (cleanHost === 'localhost') {
-      subdomain = '';
+  if (!isVercelPreview) {
+    if (cleanHost === baseDomain) {
+      subdomain = ''; // root
     } else {
-      subdomain = cleanHost.replace('.localhost', '');
+      subdomain = cleanHost.replace(`.${baseDomain}`, '');
     }
   }
 
-  // Skip API + static + Next.js internals
-  if (url.pathname.startsWith('/_next') || 
-      url.pathname.startsWith('/api') || 
-      url.pathname.startsWith('/favicon')) {
+  // Skip API routes and static assets
+  if (url.pathname.startsWith('/_next') || url.pathname.startsWith('/api') || url.pathname.startsWith('/favicon')) {
     return NextResponse.next();
   }
 
-  // Reserved subdomain or root → main app (no tenant rewrite)
-  if (!subdomain || RESERVED_SUBDOMAINS.includes(subdomain)) {
+  // Non-reserved subdomain → rewrite straight to the tenant site (no auth check needed, public storefront)
+  if (!RESERVED_SUBDOMAINS.includes(subdomain)) {
+    url.pathname = `/_sites/${subdomain}${url.pathname}`;
+    return NextResponse.rewrite(url);
+  }
+
+  // --- Root app (marketing site, auth, onboarding, dashboard) ---
+  // `/t/[slug]` direct test URLs and public marketing pages skip the auth-aware logic entirely
+  if (
+    url.pathname.startsWith('/t/') ||
+    url.pathname.startsWith('/auth/') ||
+    url.pathname === '/' ||
+    url.pathname.startsWith('/pricing') ||
+    url.pathname.startsWith('/templates') ||
+    url.pathname.startsWith('/demo')
+  ) {
     return NextResponse.next();
   }
 
-  // Real tenant subdomain → rewrite to /_sites/[slug]
-  url.pathname = `/_sites/${subdomain}${url.pathname}`;
-  return NextResponse.rewrite(url);
-}
+  let response = NextResponse.next();
 
-export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
-};
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_S
