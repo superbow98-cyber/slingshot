@@ -5,4 +5,14 @@ const nextConfig = {
   // build is green on your machine if you'd rather fail loudly on type errors.
   typescript: { ignoreBuildErrors: true },
   eslint: { ignoreDuringBuilds: true },
-  im
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**.supabase.co',
+      },
+    ],
+  },
+};
+
+module.exports = nextConfig;
